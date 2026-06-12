@@ -7,7 +7,9 @@
 # Bypass for a one-off (use sparingly): git commit --no-verify
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
-GUARD="$ROOT/.frontend-guard/guard.mjs"
+GUARD="$ROOT/.claude/frontend-guard/guard.mjs"
+# Fall back to the legacy root layout if a project hasn't been re-installed yet.
+[ -f "$GUARD" ] || GUARD="$ROOT/.frontend-guard/guard.mjs"
 
 # Not installed here (or running in the kit's own dev repo) — don't block.
 [ -f "$GUARD" ] || exit 0

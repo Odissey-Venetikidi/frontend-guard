@@ -1,5 +1,5 @@
 {
-  "_README": "Copy to your PROJECT ROOT as guard.config.json (or run `node .frontend-guard/guard.mjs --init` to auto-generate). Machine-readable half of the AGENT_FRONTEND_GUIDE Profile (§0). Paths are relative to this file. JSON has no comments; keys starting with _ are docs and are ignored.",
+  "_README": "Place at .claude/guard.config.json (or run `node .claude/frontend-guard/guard.mjs --init` to auto-generate). Machine-readable half of the AGENT_FRONTEND_GUIDE Profile (§0). Paths (uiDir/apiDir/enforcedDirs) are relative to the PROJECT ROOT — i.e. the parent of .claude/ when the config lives under .claude/. JSON has no comments; keys starting with _ are docs and are ignored.",
   "_example_stacks": {
     "react/next":  { "language": "web",     "uiDir": "src/components/ui", "enforcedDirs": ["src/app", "src/components", "src/features"], "apiDir": "src/lib/api" },
     "vue/vite":    { "language": "web",     "uiDir": "src/ui",            "enforcedDirs": ["src/views", "src/components"],               "apiDir": "src/api" },

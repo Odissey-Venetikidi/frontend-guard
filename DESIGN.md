@@ -1,6 +1,6 @@
 # frontend-guard — design
 
-Status: built 2026-06-12. Derived from the DEMETRA frontend discipline guide, made
+Status: built 2026-06-12. Derived from a production frontend discipline guide, made
 portable and self-installing. A skill + engine + hooks that enforce the guide in any
 project and any UI language.
 

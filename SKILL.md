@@ -10,12 +10,34 @@ You enforce the discipline in `AGENT_FRONTEND_GUIDE.md` (model ЯДРО+ПРОФ
 layer, one typed client for all I/O, and **STOP-and-ask** when a primitive/token/icon
 is missing. The principles are language-neutral; the names live in the project Profile.
 
-Locate the kit: the linter is `guard.mjs` next to this skill, or `.frontend-guard/guard.mjs`
+Locate the kit: the linter is `guard.mjs` next to this skill, or `.claude/frontend-guard/guard.mjs`
 if the project was installed per-project. Run it with `node <path>/guard.mjs ...`.
+Everything Claude-related lives under `.claude/` (config at `.claude/guard.config.json`, memory at
+`.claude/memory-bank/`); only `.mcp.json` stays at the project root.
 
 ## A. ONBOARDING — run this when a project is not yet set up
 
 Do these IN ORDER. Detect first, ask only the gaps, then write config, audit, enforce.
+
+### Step 0.0 — Classify the project: NEW or EXISTING
+Decide the mode before anything else:
+- **NEW** — the target is empty / has no real source (no `package.json` · `pubspec.yaml` ·
+  `Package.swift`, no source in the usual dirs). Scaffold the full architecture fresh
+  (`node <kit>/scaffold.mjs`), then help the user define the stack in `.claude/CLAUDE.md`,
+  create the ui/api layers, and wire tests. Everything starts correct from day one.
+- **EXISTING** — there is already code. Bring it into order against the discipline (Step 0.5),
+  but NEVER move/rename source silently — propose a plan and get per-step confirmation.
+
+### Step 0.5 — (EXISTING only) bring the project into order — WITH confirmation
+Opt-in, aggressive pass. Do NOT touch source until the user approves each step.
+1. Detect stack, ui/api layers, primitive inventory, tokens (Step 0). Fill `.claude/CLAUDE.md`
+   and `.claude/guard.config.json` to match reality.
+2. Run `--audit`; present the violation backlog AND structural drift (files in the wrong layer,
+   styling outside the ui-layer, raw I/O outside the api-layer, missing ui/api dirs).
+3. Propose a reorganization plan as a NUMBERED list (move/rename files to the convention, split
+   misplaced styles into primitives, extract the typed client). Execute STRICTLY one step at a
+   time, asking «ок / пропустить / стоп» before each, and commit per step. Never reorganize in a
+   single sweep — that is how silent breakage happens.
 
 ### Step 0 — Gather data (no questions yet)
 - Run `node <kit>/guard.mjs --audit` from the project root. It reports the detected
@@ -80,6 +102,9 @@ and the next action. From here, follow the guide for all UI work.
 - **STOP-and-ask** the moment a needed primitive/token/icon/variant does not exist —
   propose extending it, do NOT bypass with custom markup. Any urge to "temporarily
   hardcode" is the signal to stop. (guide §1, §10)
+- **Run tests after changes.** After adding or changing anything, run the project's tests
+  (`/test`, or the `.claude/hooks/run-tests.sh` Stop-hook) so nothing breaks. A failure means
+  fix the CAUSE in the code, not weaken the test. Don't call work done while tests are red.
 - The hooks enforce the **mechanical** §11 subset. You still own the judgement parts:
   list-endpoint contracts (§6), commit discipline (§9), Russian UI copy with a plain
   hyphen (§7), STOP-and-ask. Read `AGENT_FRONTEND_GUIDE.md` for the full contract.

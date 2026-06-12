@@ -5,13 +5,15 @@
 //
 //   node /path/to/frontend-guard/install.mjs [targetDir]   (default: cwd)
 //
-// Idempotent; nothing is overwritten without telling you. Installs:
-//   1. <target>/.frontend-guard/        (guard.mjs, hooks, guide)
+// Idempotent; nothing is overwritten without telling you. Everything Claude-related goes
+// UNDER .claude/ (only .mcp.json stays at the project root). Installs:
+//   1. <target>/.claude/frontend-guard/            (guard.mjs, scaffold, hooks, guide)
 //   2. <target>/.claude/skills/frontend-guard/SKILL.md   (so /frontend-guard works here)
-//   3. <target>/guard.config.json       (from the example, if missing)
-//   4. .claude/settings.json            (PreToolUse + SessionStart hooks merged)
-//   5. .git/hooks/pre-commit            (if a git repo)
-//   6. package.json "lint:ui"           (if present)
+//   3. <target>/.claude/guard.config.json          (from the example, if missing)
+//   4. <target>/.claude/settings.json              (PreToolUse + SessionStart hooks merged)
+//   5. .git/hooks/pre-commit + prepare-commit-msg  (if a git repo)
+//   6. package.json "lint:ui"                      (if present)
+// Also migrates a legacy ROOT layout (.frontend-guard/, root guard.config.json, memory-bank/).
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -29,8 +31,21 @@ if (TARGET === KIT) { console.error('Refusing to install into the kit itself. Pa
 if (!fs.existsSync(TARGET) || !fs.statSync(TARGET).isDirectory()) { console.error('Target is not a directory: ' + TARGET); process.exit(1) }
 console.log(`frontend-guard -> ${TARGET}\n`)
 
-// 1) engine + hooks + guide -> .frontend-guard/
-const dest = path.join(TARGET, '.frontend-guard')
+// 0) migrate a legacy ROOT layout into .claude/ (older installs put these at the project root)
+const claudeDir = path.join(TARGET, '.claude')
+fs.mkdirSync(claudeDir, { recursive: true })
+for (const [from, to, label] of [
+  ['guard.config.json', path.join('.claude', 'guard.config.json'), 'guard.config.json'],
+  ['memory-bank', path.join('.claude', 'memory-bank'), 'memory-bank/'],
+]) {
+  const src = path.join(TARGET, from), dst = path.join(TARGET, to)
+  if (fs.existsSync(src) && !fs.existsSync(dst)) { try { fs.renameSync(src, dst); ok(`migrated ${label} -> .claude/`) } catch {} }
+}
+const legacyEngine = path.join(TARGET, '.frontend-guard')
+if (fs.existsSync(legacyEngine)) { try { fs.rmSync(legacyEngine, { recursive: true, force: true }); ok('removed legacy root .frontend-guard/ (engine now lives in .claude/)') } catch {} }
+
+// 1) engine + hooks + guide -> .claude/frontend-guard/
+const dest = path.join(claudeDir, 'frontend-guard')
 fs.mkdirSync(path.join(dest, 'hooks'), { recursive: true })
 for (const f of ['guard.mjs', 'scaffold.mjs', 'AGENT_FRONTEND_GUIDE.md', 'hooks/claude-pretooluse.mjs', 'hooks/session-start.mjs', 'hooks/pre-commit', 'hooks/prepare-commit-msg']) {
   const src = path.join(KIT, f)
@@ -38,7 +53,7 @@ for (const f of ['guard.mjs', 'scaffold.mjs', 'AGENT_FRONTEND_GUIDE.md', 'hooks/
 }
 for (const h of ['claude-pretooluse.mjs', 'session-start.mjs', 'pre-commit', 'prepare-commit-msg']) { try { fs.chmodSync(path.join(dest, 'hooks', h), 0o755) } catch {} }
 try { fs.chmodSync(path.join(dest, 'guard.mjs'), 0o755) } catch {}
-ok('.frontend-guard/ copied')
+ok('.claude/frontend-guard/ copied')
 
 // 2) skill discovery
 const skillDir = path.join(TARGET, '.claude', 'skills', 'frontend-guard')
@@ -53,15 +68,15 @@ else {
   ok(`CLAUDE architecture scaffolded (${r.created} created, ${r.kept} kept) — .claude/ + CLAUDE.md + memory-bank/`)
 }
 
-// 3) guard.config.json (do not clobber)
-const cfgPath = path.join(TARGET, 'guard.config.json')
-if (fs.existsSync(cfgPath)) ok('guard.config.json already present (kept)')
-else { fs.copyFileSync(path.join(KIT, 'guard.config.example.json'), cfgPath); ok('guard.config.json created from example — run "node .frontend-guard/guard.mjs --init" to auto-detect, then review') }
+// 3) guard.config.json -> .claude/ (do not clobber; a legacy root one was migrated above)
+const cfgPath = path.join(claudeDir, 'guard.config.json')
+if (fs.existsSync(cfgPath) || fs.existsSync(path.join(TARGET, 'guard.config.json'))) ok('guard.config.json already present (kept)')
+else { fs.copyFileSync(path.join(KIT, 'guard.config.example.json'), cfgPath); ok('.claude/guard.config.json created from example — run "node .claude/frontend-guard/guard.mjs --init" to auto-detect, then review') }
 
 // 4) merge hooks into .claude/settings.json
-const settingsPath = path.join(TARGET, '.claude', 'settings.json')
-const PRE = 'node "${CLAUDE_PROJECT_DIR}/.frontend-guard/hooks/claude-pretooluse.mjs"'
-const SS = 'node "${CLAUDE_PROJECT_DIR}/.frontend-guard/hooks/session-start.mjs"'
+const settingsPath = path.join(claudeDir, 'settings.json')
+const PRE = 'node "${CLAUDE_PROJECT_DIR}/.claude/frontend-guard/hooks/claude-pretooluse.mjs"'
+const SS = 'node "${CLAUDE_PROJECT_DIR}/.claude/frontend-guard/hooks/session-start.mjs"'
 let settings = {}
 if (fs.existsSync(settingsPath)) {
   try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')) }
@@ -87,7 +102,7 @@ if (fs.existsSync(gitDir)) {
   else {
     const ex = fs.readFileSync(hookPath, 'utf8')
     if (ex.includes('frontend-guard') || ex.includes('guard.mjs')) ok('git pre-commit already wired (kept)')
-    else warn('git pre-commit exists — add:  node "$(git rev-parse --show-toplevel)/.frontend-guard/guard.mjs" --staged')
+    else warn('git pre-commit exists — add:  node "$(git rev-parse --show-toplevel)/.claude/frontend-guard/guard.mjs" --staged')
   }
   // prepare-commit-msg: auto-fill an empty commit message with a Russian change summary
   const pcmPath = path.join(gitDir, 'hooks', 'prepare-commit-msg')
@@ -106,15 +121,15 @@ if (fs.existsSync(pkgPath)) {
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
     pkg.scripts = pkg.scripts || {}
     if (pkg.scripts['lint:ui']) ok('package.json "lint:ui" already present (kept)')
-    else { pkg.scripts['lint:ui'] = 'node .frontend-guard/guard.mjs'; fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n'); ok('package.json "lint:ui" added') }
-  } catch { warn('package.json not valid JSON — add "lint:ui": "node .frontend-guard/guard.mjs" manually') }
-} else warn('no package.json — run the linter directly: node .frontend-guard/guard.mjs')
+    else { pkg.scripts['lint:ui'] = 'node .claude/frontend-guard/guard.mjs'; fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n'); ok('package.json "lint:ui" added') }
+  } catch { warn('package.json not valid JSON — add "lint:ui": "node .claude/frontend-guard/guard.mjs" manually') }
+} else warn('no package.json — run the linter directly: node .claude/frontend-guard/guard.mjs')
 
 console.log(`
 Next steps:
-  1. Fill CLAUDE.md (project rules) — the .claude/ architecture is scaffolded with examples.
-  2. node .frontend-guard/guard.mjs --init   -> auto-detect & write guard.config.json (then review).
+  1. Fill .claude/CLAUDE.md (project rules) — the .claude/ architecture is scaffolded with examples.
+  2. node .claude/frontend-guard/guard.mjs --init   -> auto-detect & write .claude/guard.config.json (then review).
   3. Run the /frontend-guard skill to onboard (asks the §0 Profile questions + audits).
   4. Restart Claude Code so the hooks load.
-  5. Try it:  node .frontend-guard/guard.mjs --audit
+  5. Try it:  node .claude/frontend-guard/guard.mjs --audit
 `)

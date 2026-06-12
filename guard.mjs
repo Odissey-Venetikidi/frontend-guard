@@ -207,6 +207,8 @@ export function loadConfig(startDir = process.cwd(), explicitPath = null) {
     while (true) {
       const cand = path.join(dir, 'guard.config.json')
       if (exists(cand)) { file = cand; break }
+      const candClaude = path.join(dir, '.claude', 'guard.config.json')
+      if (exists(candClaude)) { file = candClaude; break } // config may live under .claude/ (clean root)
       if (hasProjectMarker(dir)) break // stop at the project root; never adopt a config from an ancestor
       const parent = path.dirname(dir)
       if (parent === dir) break
@@ -218,12 +220,17 @@ export function loadConfig(startDir = process.cwd(), explicitPath = null) {
   let user
   try { user = JSON.parse(fs.readFileSync(file, 'utf8')) }
   catch (e) { throw new Error(`guard.config.json is not valid JSON: ${e.message}`) }
-  const language = user.language || detectLanguage(path.dirname(file)) || 'web'
+  // Paths (uiDir/apiDir/enforcedDirs) resolve against the PROJECT ROOT. When the config
+  // lives in <root>/.claude/guard.config.json, the root is the parent of .claude — so the
+  // base dir for scanning/relative-paths must be that parent, not the .claude folder itself.
+  const cfgDir = path.dirname(file)
+  const baseDir = path.basename(cfgDir) === '.claude' ? path.dirname(cfgDir) : cfgDir
+  const language = user.language || detectLanguage(baseDir) || 'web'
   const cfg = {
     ...DEFAULT_CONFIG, ...user, language,
     rules: { ...(user.rules || {}) },
     customRules: user.customRules || [],
-    _dir: path.dirname(file), _file: file, _auto: false,
+    _dir: baseDir, _file: file, _auto: false,
   }
   for (const [k, v] of Object.entries(cfg.rules)) {
     if (!SEVERITIES.has(v)) throw new Error(`rule "${k}" has invalid severity "${v}" (use error|warn|off)`)
@@ -505,10 +512,15 @@ usage:
       language: cfg.language, uiDir: cfg.uiDir, enforcedDirs: cfg.enforcedDirs, apiDir: cfg.apiDir,
       appChrome: DEFAULT_CONFIG.appChrome, ignore: DEFAULT_CONFIG.ignore, customRules: [], rules: {},
     }
-    const dest = path.join(root, 'guard.config.json')
-    if (exists(dest)) { console.log('guard.config.json already exists — left untouched. Detected: ' + JSON.stringify({ language: cfg.language, uiDir: cfg.uiDir, apiDir: cfg.apiDir })); return 0 }
+    // Write into .claude/ to keep the project root clean (loadConfig finds it there).
+    const claudeDir = path.join(root, '.claude')
+    const dest = path.join(claudeDir, 'guard.config.json')
+    const legacy = path.join(root, 'guard.config.json')
+    if (exists(dest)) { console.log('.claude/guard.config.json already exists — left untouched. Detected: ' + JSON.stringify({ language: cfg.language, uiDir: cfg.uiDir, apiDir: cfg.apiDir })); return 0 }
+    if (exists(legacy)) { console.log('guard.config.json already exists at project root — left untouched (move it to .claude/ if you want a clean root). Detected: ' + JSON.stringify({ language: cfg.language, uiDir: cfg.uiDir, apiDir: cfg.apiDir })); return 0 }
+    fs.mkdirSync(claudeDir, { recursive: true })
     fs.writeFileSync(dest, JSON.stringify(out, null, 2) + '\n')
-    console.log('frontend-guard --init: wrote guard.config.json')
+    console.log('frontend-guard --init: wrote .claude/guard.config.json')
     console.log('  detected: ' + JSON.stringify({ language: cfg.language, uiDir: cfg.uiDir, apiDir: cfg.apiDir, enforcedDirs: cfg.enforcedDirs }, null, 0))
     console.log('  REVIEW IT — confirm the ui/api dirs and primitive inventory match reality.')
     return 0

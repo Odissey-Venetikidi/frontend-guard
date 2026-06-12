@@ -92,7 +92,7 @@ alert():                      <alert-fn>        # дефолт alert({title,text
 
 > Это сердце адаптации. Ядро ссылается ТОЛЬКО на роли в левом столбце. В столбце «Имя в проекте» ты сопоставляешь роль конкретному имени примитива из своего UI-слоя. Два правых столбца — **справочные примеры заполнения для двух разных стеков** (React/Next и Vue); они визуально изолированы от ядра и НИКОГДА не используются в правилах. **Незаполненная роль = «примитива нет» = триггер СТОП** (раздел 2) при первой надобности; оставляй прочерк, но строку не удаляй.
 
-| Роль | Имя в проекте | Пример (React: shadcn/ui · MUI) | Пример (Vue / DEMETRA) |
+| Роль | Имя в проекте | Пример (React: shadcn/ui · MUI) | Пример (Vue) |
 |---|---|---|---|
 | Кнопка с текстом | `<btn>` | Button | Button |
 | Icon-only кнопка | `<icon-btn>` | IconButton | IconButton |
@@ -135,7 +135,7 @@ alert():                      <alert-fn>        # дефолт alert({title,text
 | Tab-навигация | `<tabs>` | Tabs | SectionTabs |
 | Прочее (домен-специфика) | `<...>` | декларировать по мере появления | декларировать по мере появления |
 
-> **Полный инвентарь DEMETRA приведён НИЖЕ как развёрнутый пример заполнения столбца «Имя в проекте» — это ИЛЛЮСТРАЦИЯ Профиля, она НИКОГДА не используется в ядре.** Структурно он вынесен в отдельный blockquote, чтобы изоляция держалась не только на тексте-предупреждении, но и на форматировании (при копировании блок остаётся обособленным):
+> **Полный инвентарь примитивов одного реального проекта приведён НИЖЕ как развёрнутый пример заполнения столбца «Имя в проекте» — это ИЛЛЮСТРАЦИЯ Профиля, она НИКОГДА не используется в ядре.** Структурно он вынесен в отдельный blockquote, чтобы изоляция держалась не только на тексте-предупреждении, но и на форматировании (при копировании блок остаётся обособленным):
 >
 > AppBrand, AuthLayout, Avatar, Badge, Button, Callout, Card, Checkbox, ConfirmDialog, DataTable, DateTime, DateTimeInput, DefItem, DefList, DirtyBar, Divider, Drawer, DropdownMenu, EditPopover, EmptyState, ErrorState, FilterBar, FormField, Grid, Icon, IconButton, Illustration, Link, LinkTile, Modal, MultiSelect, NumberEditPopover, PageHeader, Pagination, PhoneInput, ProgressBar, RadioGroup, Rating, RowActionsMenu, SectionHeader, SectionTabs, SegmentedControl, Select, SettingRow, Skeleton, Spinner, Stack, StaticTable, StatusPill, StickyPanel, Switch, TagInput, TagListInput, ThresholdSelect, Thumbnail, ToastHost, TogglePillGroup.
 >

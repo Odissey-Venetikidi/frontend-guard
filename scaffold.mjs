@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // frontend-guard CLAUDE scaffolder — create the canonical Claude Code architecture
-// in a project: the .claude/ "brain" (skills/, agents/, commands/, hooks/, plugins/,
-// statusline.sh, settings*.json) plus CLAUDE.md, CLAUDE.local.md, .mcp.json and the
-// memory-bank/ (progress / decisions / insights).
+// in a project. Everything Claude-related lives UNDER .claude/ (the only dir Claude Code
+// discovers): .claude/CLAUDE.md + CLAUDE.local.md, the "brain" (skills/, agents/, commands/,
+// hooks/), memory-bank/ (progress/decisions/insights), statusline.sh, settings*.json, plus
+// the /test command and the run-tests Stop-hook. Only .mcp.json must stay at the project
+// ROOT (Claude Code requires it there). A tests/ folder is scaffolded at the root.
 //
 //   node /path/to/frontend-guard/scaffold.mjs [targetDir]   (default: cwd)
 //     --force        overwrite files that already exist (default: never clobber)
@@ -23,11 +25,11 @@ import { fileURLToPath } from 'node:url'
 
 function files(projectName) {
   return {
-    // ── root: rules + personal + mcp ───────────────────────────────────────────────
-    'CLAUDE.md': `# ${projectName} — инструкции проекта
+    // ── .claude/CLAUDE.md + личное (Claude Code авто-загружает .claude/CLAUDE.md) ───
+    '.claude/CLAUDE.md': `# ${projectName} — инструкции проекта
 
-> Главный файл правил для Claude. Держи его коротким (до ~200 строк) и конкретным.
-> Без CLAUDE.md агент угадывает, а не работает.
+> Главный файл правил для Claude (лежит в .claude/CLAUDE.md, авто-загружается). Держи
+> коротким (до ~200 строк) и конкретным. Без CLAUDE.md агент угадывает, а не работает.
 
 ## Стандарты
 - <язык/стек: напр. TypeScript strict, без any>
@@ -37,6 +39,13 @@ function files(projectName) {
 ## Архитектура
 - <ключевые решения: стейт-менеджер, слои, границы>
 - <что где лежит: ui-слой, api-слой, данные>
+- движок дисциплины и конфиг: .claude/frontend-guard/, .claude/guard.config.json
+- память проекта: .claude/memory-bank/ (progress / decisions / insights)
+
+## Тесты
+- тесты живут в tests/ (или конвенции стека). Раннер определяется автоматически.
+- ПОСЛЕ каждой новой фичи/правки — прогнать тесты (/test или хук run-tests), чтобы ничего не сломать.
+- сломал тест — чини ПРИЧИНУ в коде, а не подгоняй тест под баг.
 
 ## Формат коммита
 - <PREFIX-XXX>: суть одной строкой
@@ -44,25 +53,27 @@ function files(projectName) {
 
 ## Никогда
 - не пушить без явного «иди»
-- не хардкодить стили вне ui-слоя (см. AGENT_FRONTEND_GUIDE / frontend-guard)
+- не хардкодить стили вне ui-слоя (см. .claude/frontend-guard/AGENT_FRONTEND_GUIDE.md)
 - не ходить в сеть мимо типизированного клиента
+- не считать работу законченной, пока тесты не зелёные
 `,
 
-    'CLAUDE.local.md': `# Личные заметки (CLAUDE.local.md)
+    '.claude/CLAUDE.local.md': `# Личные заметки (CLAUDE.local.md)
 
-Персональные правки поверх CLAUDE.md. Файл в .gitignore — НЕ коммитится.
+Персональные правки поверх .claude/CLAUDE.md. Файл в .gitignore — НЕ коммитится.
 Сюда: локальные пути, временные напоминания, личные предпочтения по стилю общения.
 
 - <твоё...>
 `,
 
+    // ── .mcp.json — ЕДИНСТВЕННЫЙ Claude-файл, обязанный лежать в КОРНЕ ──────────────
     '.mcp.json': `{
   "mcpServers": {}
 }
 `,
 
-    // ── memory-bank: что было, решения, инсайты ────────────────────────────────────
-    'memory-bank/progress.md': `# Progress — что сделано / в работе
+    // ── .claude/memory-bank: что было, решения, инсайты ────────────────────────────
+    '.claude/memory-bank/progress.md': `# Progress — что сделано / в работе
 
 > Живой журнал. Обновляй в конце каждой сессии.
 
@@ -76,7 +87,7 @@ function files(projectName) {
 - <следующий шаг>
 `,
 
-    'memory-bank/decisions.md': `# Decisions — архитектурные решения и «почему»
+    '.claude/memory-bank/decisions.md': `# Decisions — архитектурные решения и «почему»
 
 > Каждое значимое решение: контекст → решение → последствия.
 > Чтобы через месяц не переоткрывать «а почему так».
@@ -87,7 +98,7 @@ function files(projectName) {
 - Почему: <обоснование, отвергнутые альтернативы>
 `,
 
-    'memory-bank/insights.md': `# Insights — находки, грабли, что не повторять
+    '.claude/memory-bank/insights.md': `# Insights — находки, грабли, что не повторять
 
 > Уроки, на которые уже наступали. Сюда — чтобы не наступить снова.
 
@@ -208,14 +219,40 @@ description: <что делает команда — одной строкой>
 - <что нельзя делать без подтверждения>
 `,
 
+    '.claude/commands/test.md': `---
+description: прогнать тесты проекта и починить падения
+---
+
+# /test
+
+Определи тест-раннер проекта и прогони тесты. Цель — зелёный прогон после любых изменений.
+
+## Шаги
+1. Определи раннер по манифесту/локфайлу:
+   - package.json scripts.test -> менеджер из локфайла (npm test / pnpm test / yarn test);
+     иначе по зависимостям npx vitest run / npx jest.
+   - pubspec.yaml -> flutter test.
+   - pyproject.toml / pytest.ini / папка tests с pytest -> pytest -q.
+   - go.mod -> go test ./...   | Cargo.toml -> cargo test   | Package.swift -> swift test.
+2. Прогони. Падает — читай ПЕРВУЮ ошибку, чини ПРИЧИНУ в коде, а не подгоняй тест.
+3. Повтори до зелёного. Кратко отчитайся: что падало и почему.
+
+## Никогда
+- не «чинить» тест ослаблением ассерта/мока ради прохода;
+- не коммитить с красными тестами;
+- не гонять тяжёлые e2e без надобности — сначала unit/smoke.
+`,
+
     // ── .claude/hooks ──────────────────────────────────────────────────────────────
     '.claude/hooks/README.md': `# hooks/ — скрипты, которые срабатывают всегда
 
-Запускаются до или после инструмента Claude (PreToolUse / PostToolUse).
+Запускаются до или после инструмента Claude (PreToolUse / PostToolUse / Stop).
 Блокируют опасное автоматически — без вопросов, без исключений. Это твои ограждения.
 
 Подключаются в .claude/settings.json -> "hooks".
-Пример рядом (example-hook.sh) НЕ подключён — это образец.
+Рядом: example-hook.sh (образец PostToolUse, НЕ подключён) и run-tests.sh
+(Stop-хук авто-прогона тестов; подключи в hooks.Stop, по умолчанию advisory — показывает
+падения, не блокирует; внутри есть строка, чтобы сделать блокирующим).
 `,
 
     '.claude/hooks/example-hook.sh': `#!/usr/bin/env bash
@@ -233,24 +270,47 @@ case "$FILE" in
 esac
 `,
 
-    // ── .claude/plugins ────────────────────────────────────────────────────────────
-    '.claude/plugins/README.md': `# plugins/ — первый класс в 2026
+    '.claude/hooks/run-tests.sh': `#!/usr/bin/env bash
+# Stop-хук: когда агент закончил ход — прогнать тесты, если менялись исходники.
+# Подключи в .claude/settings.json -> hooks.Stop. По умолчанию ADVISORY (показывает
+# результат, не блокирует). Чтобы блокировать стоп при падении — см. конец файла.
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+cd "$ROOT" || exit 0
 
-Плагины пакуют агентов + команды + хуки + MCP в один установимый набор.
-Ставятся один раз — работают везде. Можно делиться с командой и переносить.
+# Гонять только если в этом ходе реально менялись исходники (а не только .md/доки).
+if git rev-parse --git-dir >/dev/null 2>&1; then
+  CHANGED=$(git status --porcelain 2>/dev/null | grep -iE '\\.(ts|tsx|js|jsx|vue|svelte|dart|swift|py|go|rs)$' || true)
+  [ -z "$CHANGED" ] && exit 0
+fi
 
-Рядом — пример: example-plugin/plugin.json.
+# Автоопределение раннера.
+if [ -f package.json ] && grep -q '"test"' package.json; then
+  if [ -f pnpm-lock.yaml ]; then CMD="pnpm test"; elif [ -f yarn.lock ]; then CMD="yarn test"; else CMD="npm test"; fi
+elif [ -f pubspec.yaml ]; then CMD="flutter test"
+elif [ -f go.mod ]; then CMD="go test ./..."
+elif [ -f Cargo.toml ]; then CMD="cargo test"
+elif [ -f pyproject.toml ] || [ -f pytest.ini ] || [ -d tests ]; then CMD="pytest -q"
+else exit 0
+fi
+
+echo "run-tests: $CMD" >&2
+if $CMD >&2 2>&1; then
+  echo "run-tests: OK" >&2
+  exit 0
+else
+  echo "run-tests: ТЕСТЫ ПАДАЮТ — почини причину перед завершением хода." >&2
+  exit 0   # ADVISORY. Замени на 'exit 2', чтобы блокировать завершение при падении тестов.
+fi
 `,
 
-    '.claude/plugins/example-plugin/plugin.json': `{
-  "name": "example-plugin",
-  "version": "0.1.0",
-  "description": "<что делает плагин>",
-  "author": "<ты>",
-  "agents": [],
-  "commands": [],
-  "hooks": []
-}
+    // ── .claude/plugins (справочно; проектный .claude/plugins НЕ автозагружается) ───
+    '.claude/plugins/README.md': `# plugins/ — справочно (НЕ подключается автоматически)
+
+Плагины Claude Code пакуют агентов + команды + хуки + MCP в один набор.
+ВАЖНО: проектная папка .claude/plugins/ Claude Code НЕ подхватывает автоматически —
+плагины ставятся из маркетплейса (/plugin install) или живут у пользователя (~/.claude).
+Для проектных расширений используй .claude/{skills,agents,commands,hooks} — их Claude
+Code находит сам. Эта папка оставлена только как напоминание.
 `,
 
     // ── .claude/ statusline + settings ─────────────────────────────────────────────
@@ -289,19 +349,38 @@ printf '⎇ %s · %s' "$branch" "$model"
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [{ "type": "command", "command": ".claude/hooks/example-hook.sh" }]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": ".claude/hooks/run-tests.sh" }]
+      }
     ]
   },
   "outputStyle": "terse",
   "statusLine": { "type": "command", "command": ".claude/statusline.sh" }
 }
 `,
+
+    // ── tests/ — тесты проекта (в КОРНЕ, по конвенции экосистем; не Claude-конфиг) ──
+    'tests/README.md': `# tests/ — тесты проекта
+
+Здесь живут тесты (или используй конвенцию стека: test/, __tests__, *_test.go и т.п.).
+
+Дисциплина: ПОСЛЕ каждой новой фичи или правки — прогнать тесты, чтобы ничего не сломать.
+- быстрый прогон: команда /test (определит раннер сам) или хук .claude/hooks/run-tests.sh;
+- сломал тест — чини ПРИЧИНУ в коде, не подгоняй тест под баг;
+- не считай работу законченной, пока прогон не зелёный.
+
+Раннер определяется автоматически: vitest/jest (package.json), flutter test (pubspec.yaml),
+pytest (pyproject/pytest.ini), go test (go.mod), cargo test (Cargo.toml), swift test.
+`,
   }
 }
 
 // files that should never enter git once they exist in a project
-const GITIGNORE_LINES = ['CLAUDE.local.md', '.claude/settings.local.json']
+const GITIGNORE_LINES = ['.claude/CLAUDE.local.md', '.claude/settings.local.json']
 // files that must be executable
-const EXECUTABLE = new Set(['.claude/hooks/example-hook.sh', '.claude/statusline.sh'])
+const EXECUTABLE = new Set(['.claude/hooks/example-hook.sh', '.claude/hooks/run-tests.sh', '.claude/statusline.sh'])
 
 // ---- core ---------------------------------------------------------------------------
 
@@ -316,6 +395,12 @@ export function scaffold(targetDir, { force = false, quiet = false } = {}) {
 
   let created = 0, kept = 0
   for (const [rel, content] of Object.entries(tree)) {
+    // Both ./CLAUDE.md and ./.claude/CLAUDE.md auto-load. If the project already keeps its
+    // rules at the root, don't create a duplicate inside .claude/ (same for CLAUDE.local.md).
+    if ((rel === '.claude/CLAUDE.md' && fs.existsSync(path.join(TARGET, 'CLAUDE.md'))) ||
+        (rel === '.claude/CLAUDE.local.md' && fs.existsSync(path.join(TARGET, 'CLAUDE.local.md')))) {
+      kept++; say('  · ' + rel + ' (есть CLAUDE.md в корне — пропущено)'); continue
+    }
     const dest = path.join(TARGET, rel)
     const exists = fs.existsSync(dest)
     if (exists && !force) { kept++; say('  · ' + rel + ' (есть, пропущено)'); continue }
@@ -364,10 +449,12 @@ if (invokedDirectly) {
     scaffold(TARGET, { force, quiet })
     console.log(`
 Готово. Дальше:
-  1. Заполни CLAUDE.md — правила проекта (стек, архитектура, «никогда»).
+  1. Заполни .claude/CLAUDE.md — правила проекта (стек, архитектура, «никогда»).
   2. Положи свои скиллы/агентов/команды в .claude/ (примеры рядом — переименуй и наполни).
-  3. settings.example.json — образец панели управления; перенеси нужное в settings.json.
-  4. Перезапусти Claude Code, чтобы подхватить .claude/.`)
+  3. .claude/settings.example.json — образец панели; перенеси нужное в .claude/settings.json
+     (в т.ч. hooks.Stop -> .claude/hooks/run-tests.sh для авто-прогона тестов).
+  4. Тесты — в tests/; после правок гоняй /test, чтобы ничего не сломать.
+  5. Перезапусти Claude Code, чтобы подхватить .claude/.`)
   } catch (e) {
     console.error('frontend-guard scaffold: ' + e.message)
     process.exit(1)
