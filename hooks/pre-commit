@@ -1,0 +1,28 @@
+#!/bin/sh
+# frontend-guard git pre-commit hook.
+# Lints staged files and blocks the commit if the staged change INTRODUCES a new
+# error-severity violation (guide §11). Delta vs HEAD, so legacy noncompliance
+# doesn't block unrelated commits.
+#
+# Bypass for a one-off (use sparingly): git commit --no-verify
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+GUARD="$ROOT/.frontend-guard/guard.mjs"
+
+# Not installed here (or running in the kit's own dev repo) — don't block.
+[ -f "$GUARD" ] || exit 0
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "frontend-guard: node not found on PATH — skipping (install Node to enable)." >&2
+  exit 0
+fi
+
+node "$GUARD" --staged
+status=$?
+
+if [ "$status" -ne 0 ]; then
+  echo "" >&2
+  echo "frontend-guard: commit blocked. Fix the errors above, or 'git commit --no-verify' to bypass." >&2
+fi
+
+exit "$status"

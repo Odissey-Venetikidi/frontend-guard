@@ -1,0 +1,8 @@
+# frontend-guard repo — keep it clean, it's a kit not an app
+node_modules/
+*.bak
+*.log
+.DS_Store
+# never commit a consumer's generated config / installed copy
+/guard.config.json
+/.frontend-guard/

@@ -1,0 +1,41 @@
+{
+  "name": "frontend-guard",
+  "version": "1.0.0",
+  "description": "Enforce frontend/UI engineering discipline in any project and any UI language — a Claude Code skill + zero-dependency linter + auto-installing hooks.",
+  "type": "module",
+  "bin": {
+    "frontend-guard": "cli.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "files": [
+    "guard.mjs",
+    "cli.mjs",
+    "setup.mjs",
+    "install.mjs",
+    "bootstrap.sh",
+    "hooks/",
+    "template/",
+    "SKILL.md",
+    "AGENT_FRONTEND_GUIDE.md",
+    "guard.config.example.json",
+    "settings.snippet.json",
+    "README.md",
+    "DESIGN.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "claude-code",
+    "claude-code-skill",
+    "frontend",
+    "design-system",
+    "linter",
+    "hooks",
+    "flutter",
+    "swiftui",
+    "react",
+    "vue"
+  ]
+}
