@@ -1,0 +1,51 @@
+#!/bin/sh
+# frontend-guard: prepare-commit-msg
+# Заполняет ПУСТОЕ сообщение коммита русской сводкой staged-изменений («что сделано»).
+# Неразрушающий: не трогает merge/squash/amend, `-m`/`-F`/`-t` и то, что ты уже набрал.
+
+MSG_FILE="$1"
+SOURCE="$2"   # message (-m/-F) | template (-t) | merge | squash | commit (amend/-c); пусто = обычный коммит
+
+# Действуем только на свежем обычном коммите (через редактор), без своего текста.
+[ -n "$SOURCE" ] && exit 0
+
+# Уже есть непустая, не-комментарная строка — оставляем как есть.
+if grep -qE '^[^#[:space:]]' "$MSG_FILE" 2>/dev/null; then
+  exit 0
+fi
+
+added=$(git diff --cached --name-only --diff-filter=A 2>/dev/null)
+modified=$(git diff --cached --name-only --diff-filter=M 2>/dev/null)
+deleted=$(git diff --cached --name-only --diff-filter=D 2>/dev/null)
+renamed=$(git diff --cached --name-only --diff-filter=R 2>/dev/null)
+
+# Ничего не staged — пусть git сам решает (он отменит пустой коммит).
+[ -z "$added$modified$deleted$renamed" ] && exit 0
+
+n() { [ -z "$1" ] && echo 0 || printf '%s\n' "$1" | grep -c .; }
+csv() { printf '%s\n' "$1" | grep . | paste -sd, - | sed 's/,/, /g'; }
+na=$(n "$added"); nm=$(n "$modified"); nd=$(n "$deleted"); nr=$(n "$renamed")
+
+# Область = самый частый верхнеуровневый сегмент пути.
+area=$(git diff --cached --name-only 2>/dev/null | sed 's#/.*##' | sort | uniq -c | sort -rn | head -1 | awk '{print $2}')
+[ -z "$area" ] && area="проект"
+
+# Глагол для заголовка по характеру изменений.
+if   [ "$na" -gt 0 ] && [ "$nm" -eq 0 ] && [ "$nd" -eq 0 ]; then verb="Добавление"
+elif [ "$nd" -gt 0 ] && [ "$na" -eq 0 ] && [ "$nm" -eq 0 ]; then verb="Удаление"
+else verb="Обновление"; fi
+
+TMP="$MSG_FILE.fg.$$"
+{
+  printf '%s: %s\n' "$verb" "$area"
+  printf '\n'
+  printf 'Что сделано:\n'
+  [ "$na" -gt 0 ] && printf -- '- Добавлено (%s): %s\n' "$na" "$(csv "$added")"
+  [ "$nm" -gt 0 ] && printf -- '- Изменено (%s): %s\n'  "$nm" "$(csv "$modified")"
+  [ "$nd" -gt 0 ] && printf -- '- Удалено (%s): %s\n'   "$nd" "$(csv "$deleted")"
+  [ "$nr" -gt 0 ] && printf -- '- Переименовано (%s): %s\n' "$nr" "$(csv "$renamed")"
+  printf '\n'
+  printf '# Черновик от frontend-guard. Отредактируй первую строку: что сделал (<=50 символов).\n'
+  printf '# Объясни *почему*, не только *что*. Обычный дефис, без длинного тире. Строки с # игнорируются.\n'
+  cat "$MSG_FILE"
+} > "$TMP" && mv "$TMP" "$MSG_FILE"

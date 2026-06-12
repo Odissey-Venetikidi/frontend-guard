@@ -9,10 +9,11 @@
 - **Гайд** — `AGENT_FRONTEND_GUIDE.md` (модель ЯДРО+ПРОФИЛЬ). Что читает агент.
 - **Скил** — `SKILL.md`. Онбординг: ряд вопросов + порядок шагов + сбор данных о проекте + аудит.
 - **Движок** — `guard.mjs`. Автоматизируемый срез §11, **с автоопределением языка/путей**. Библиотека + CLI, без зависимостей.
-- **Хуки** — энфорсят в трёх точках:
+- **Хуки** — энфорсят и помогают в нескольких точках:
   - `hooks/claude-pretooluse.mjs` — Claude Code: блокирует нарушение в момент правки агентом.
   - `hooks/session-start.mjs` — Claude Code: при старте сессии на UI-проекте сам представляется и зовёт онбординг.
-  - `hooks/pre-commit` — git: на коммите, для любого разработчика (даже без Claude Code).
+  - `hooks/pre-commit` — git: на коммите проверяет staged-дельту, для любого разработчика (даже без Claude Code).
+  - `hooks/prepare-commit-msg` — git: заполняет пустое сообщение коммита русской сводкой изменений («что сделано»).
 
 Все хуки зовут один `guard.mjs` и читают один `guard.config.json`.
 
@@ -64,10 +65,80 @@ node install.mjs               # в текущую папку
 node install.mjs /path/to/app  # в другой проект
 ```
 Кладёт kit в `<проект>/.frontend-guard/`, скил в `.claude/skills/frontend-guard/`, мержит
-`.claude/settings.json`, ставит git pre-commit, добавляет `lint:ui`. Закоммить `.frontend-guard/`
-+ `guard.config.json` — git-хук заработает у всех в команде.
+`.claude/settings.json`, ставит git pre-commit, добавляет `lint:ui` — **и сразу скаффолдит
+CLAUDE-архитектуру** (`.claude/` + `CLAUDE.md` + `memory-bank/`, см. ниже). Закоммить
+`.frontend-guard/` + `guard.config.json` — git-хук заработает у всех в команде.
+Не нужен скаффолд? `node install.mjs --no-scaffold`.
 
 Оба установщика **идемпотентны** и ничего не перезатирают молча (существующие хуки сохраняются).
+
+---
+
+## CLAUDE-архитектура (scaffold)
+
+При установке в проект (или отдельной командой) frontend-guard разворачивает **каноничную
+структуру Claude Code** — то самое «прокачаешь не промпт, прокачаешь `.claude/`». Идемпотентно,
+ничего не перезатирает: пишет только то, чего ещё нет.
+
+```sh
+node scaffold.mjs                 # в текущую папку
+node scaffold.mjs /path/to/app    # в другой проект
+node scaffold.mjs --force         # перезаписать существующие (по умолчанию — нет)
+# через CLI / npx:
+npx github:Odissey-Venetikidi/frontend-guard scaffold
+```
+
+Что создаётся:
+
+```
+your-project/
+├ CLAUDE.md                 # твои правила. держи до ~200 строк
+├ CLAUDE.local.md           # личные правки. в git не идёт (добавляется в .gitignore)
+├ .mcp.json                 # MCP-серверы. только в корне
+├ memory-bank/              # память проекта
+│ ├ progress.md             #   что сделано / в работе
+│ ├ decisions.md            #   архитектурные решения и «почему»
+│ └ insights.md             #   находки, грабли, что не повторять
+└ .claude/                  # мозг
+  ├ skills/                 #   навыки (1 папка + SKILL.md). + example-skill/
+  ├ agents/                 #   суб-агенты, свой контекст. + example-agent.md
+  ├ commands/               #   слэш-команды. + commit.md (/commit на русском) + example-command.md
+  ├ hooks/                  #   скрипты-ограждения. + example-hook.sh (образец, не активен)
+  ├ plugins/                #   агенты+команды+хуки+MCP одним набором. + example-plugin/
+  ├ statusline.sh           #   нижний бар: ветка · модель
+  ├ settings.json           #   панель управления (минимальный скелет; install домержит хуки)
+  ├ settings.local.json     #   личное. в git не идёт
+  └ settings.example.json   #   полный образец панели (модель/права/хуки/statusLine)
+```
+
+Папки `skills/agents/commands/hooks/plugins` приходят с README (что куда класть) и рабочим
+примером — переименуй и наполни. Активного поведения примеры не вносят: образцовый хук и
+`statusLine` подключаются только если ты сам пропишешь их в `settings.json`.
+
+---
+
+## Коммит на русском — автоматически
+
+При установке в проект (`install.mjs`) ставится git-хук **`prepare-commit-msg`**, который при
+обычном `git commit` (через редактор) заполняет пустое сообщение русской сводкой staged-изменений:
+
+```
+Обновление: src
+
+Что сделано:
+- Добавлено (2): README.md, src/a.js
+- Изменено (1): keep.txt
+- Удалено (1): del.txt
+
+# Черновик от frontend-guard. Отредактируй первую строку: что сделал (<=50 символов).
+```
+
+Неразрушающий: не трогает `git commit -m`, merge/squash/amend и текст, который ты уже набрал —
+заполняет только пустой коммит. Отредактируй первую строку под себя.
+
+Нужно осмысленное сообщение «что сделал и почему», а не список файлов? В Claude Code есть
+команда **`/commit`** (`.claude/commands/commit.md`): Claude читает `git diff --staged`, пишет
+коммит на русском (subject ≤50 символов + тело с обоснованием) и коммитит после твоего «иди».
 
 ---
 
@@ -141,5 +212,6 @@ node guard.mjs --audit      # аудит: структура + сводка на
 node guard.mjs --init       # написать guard.config.json из автоопределения
 node guard.mjs --staged     # git-staged delta (зовётся pre-commit'ом)
 node guard.mjs --lang flutter --json
+node scaffold.mjs [dir]     # развернуть CLAUDE-архитектуру (.claude/ + CLAUDE.md + memory-bank/)
 ```
 Exit 0 = чисто, 1 = есть error, 2 = ошибка конфига.

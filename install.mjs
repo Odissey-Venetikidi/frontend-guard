@@ -16,9 +16,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { scaffold } from './scaffold.mjs'
 
 const KIT = path.dirname(fileURLToPath(import.meta.url))
-const TARGET = path.resolve(process.argv[2] || process.cwd())
+const argv = process.argv.slice(2)
+const noScaffold = argv.includes('--no-scaffold')
+const TARGET = path.resolve(argv.find((a) => !a.startsWith('-')) || process.cwd())
 const ok = (m) => console.log('  ✓ ' + m)
 const warn = (m) => console.log('  ! ' + m)
 
@@ -29,11 +32,11 @@ console.log(`frontend-guard -> ${TARGET}\n`)
 // 1) engine + hooks + guide -> .frontend-guard/
 const dest = path.join(TARGET, '.frontend-guard')
 fs.mkdirSync(path.join(dest, 'hooks'), { recursive: true })
-for (const f of ['guard.mjs', 'AGENT_FRONTEND_GUIDE.md', 'hooks/claude-pretooluse.mjs', 'hooks/session-start.mjs', 'hooks/pre-commit']) {
+for (const f of ['guard.mjs', 'scaffold.mjs', 'AGENT_FRONTEND_GUIDE.md', 'hooks/claude-pretooluse.mjs', 'hooks/session-start.mjs', 'hooks/pre-commit', 'hooks/prepare-commit-msg']) {
   const src = path.join(KIT, f)
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join(dest, f)); else warn(`missing in kit: ${f}`)
 }
-for (const h of ['claude-pretooluse.mjs', 'session-start.mjs', 'pre-commit']) { try { fs.chmodSync(path.join(dest, 'hooks', h), 0o755) } catch {} }
+for (const h of ['claude-pretooluse.mjs', 'session-start.mjs', 'pre-commit', 'prepare-commit-msg']) { try { fs.chmodSync(path.join(dest, 'hooks', h), 0o755) } catch {} }
 try { fs.chmodSync(path.join(dest, 'guard.mjs'), 0o755) } catch {}
 ok('.frontend-guard/ copied')
 
@@ -41,6 +44,14 @@ ok('.frontend-guard/ copied')
 const skillDir = path.join(TARGET, '.claude', 'skills', 'frontend-guard')
 fs.mkdirSync(skillDir, { recursive: true })
 if (fs.existsSync(path.join(KIT, 'SKILL.md'))) { fs.copyFileSync(path.join(KIT, 'SKILL.md'), path.join(skillDir, 'SKILL.md')); ok('.claude/skills/frontend-guard/SKILL.md installed') }
+
+// 2.5) scaffold the canonical CLAUDE architecture (.claude/ brain, CLAUDE.md,
+//      memory-bank/, .mcp.json, statusline.sh, settings skeleton) — idempotent.
+if (noScaffold) ok('CLAUDE scaffold skipped (--no-scaffold)')
+else {
+  const r = scaffold(TARGET, { quiet: true })
+  ok(`CLAUDE architecture scaffolded (${r.created} created, ${r.kept} kept) — .claude/ + CLAUDE.md + memory-bank/`)
+}
 
 // 3) guard.config.json (do not clobber)
 const cfgPath = path.join(TARGET, 'guard.config.json')
@@ -78,7 +89,15 @@ if (fs.existsSync(gitDir)) {
     if (ex.includes('frontend-guard') || ex.includes('guard.mjs')) ok('git pre-commit already wired (kept)')
     else warn('git pre-commit exists — add:  node "$(git rev-parse --show-toplevel)/.frontend-guard/guard.mjs" --staged')
   }
-} else warn('not a git repo — skipped pre-commit (run "git init" then re-run to add it)')
+  // prepare-commit-msg: auto-fill an empty commit message with a Russian change summary
+  const pcmPath = path.join(gitDir, 'hooks', 'prepare-commit-msg')
+  if (!fs.existsSync(pcmPath)) { fs.copyFileSync(path.join(KIT, 'hooks/prepare-commit-msg'), pcmPath); fs.chmodSync(pcmPath, 0o755); ok('git prepare-commit-msg installed (auto-fills commits in Russian)') }
+  else {
+    const ex = fs.readFileSync(pcmPath, 'utf8')
+    if (ex.includes('frontend-guard')) ok('git prepare-commit-msg already wired (kept)')
+    else warn('git prepare-commit-msg exists — keeping yours (frontend-guard auto-fill not added)')
+  }
+} else warn('not a git repo — skipped git hooks (run "git init" then re-run to add them)')
 
 // 6) package.json lint script
 const pkgPath = path.join(TARGET, 'package.json')
@@ -93,8 +112,9 @@ if (fs.existsSync(pkgPath)) {
 
 console.log(`
 Next steps:
-  1. node .frontend-guard/guard.mjs --init   -> auto-detect & write guard.config.json (then review).
-  2. Run the /frontend-guard skill to onboard (asks the §0 Profile questions + audits).
-  3. Restart Claude Code so the hooks load.
-  4. Try it:  node .frontend-guard/guard.mjs --audit
+  1. Fill CLAUDE.md (project rules) — the .claude/ architecture is scaffolded with examples.
+  2. node .frontend-guard/guard.mjs --init   -> auto-detect & write guard.config.json (then review).
+  3. Run the /frontend-guard skill to onboard (asks the §0 Profile questions + audits).
+  4. Restart Claude Code so the hooks load.
+  5. Try it:  node .frontend-guard/guard.mjs --audit
 `)

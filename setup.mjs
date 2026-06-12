@@ -90,6 +90,8 @@ Done. frontend-guard is now GLOBAL.
   • Restart Claude Code so the hooks load.
   • Every UI project (React/Vue/Svelte, Flutter, SwiftUI) is enforced automatically;
     SessionStart will nudge onboarding when a project has no guard.config.json.
+  • Scaffold the CLAUDE architecture in a project (.claude/ + CLAUDE.md + memory-bank/):
+      node ${path.join(SKILL_DIR, 'scaffold.mjs')} /path/to/project
   • Per-project precision: run the "frontend-guard" skill (or 'node ${path.join(SKILL_DIR, 'guard.mjs')} --init').
   • Uninstall:  node ${path.join(SKILL_DIR, 'setup.mjs')} --uninstall   (add --purge to also delete the skill dir)
 `)
